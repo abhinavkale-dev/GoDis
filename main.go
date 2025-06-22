@@ -26,6 +26,12 @@ func main() {
 		command := strings.ToUpper(value.array[0].bulk)
 		args := value.array[1:]
 
+		fmt.Printf("Replaying commands of User: %s", command)
+		for _, v := range args {
+			fmt.Printf(" %q", v.bulk)
+		}
+		fmt.Println()
+
 		handler, ok := handlers[command]
 		if !ok {
 			fmt.Println("Invalid command: ", command)
