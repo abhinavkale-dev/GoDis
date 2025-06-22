@@ -132,29 +132,22 @@ HGETALL user:1
 
 ## 🛠️ Development
 
-### Adding New Commands
+### How the Code Works
 
-1. Add the command handler to `handler.go`:
-```go
-func newCommand(args []Value) Value {
-    // Implementation here
-}
-```
+**Connection Flow**:
+The server starts by listening on port 6969 and accepts incoming TCP connections. When a client connects, the main loop continuously reads RESP-formatted commands, processes them through registered handlers, and writes responses back to the client. The AOF mechanism logs write operations for persistence.
 
-2. Register the handler in the `handlers` map:
-```go
-var handlers = map[string]func([]Value) Value{
-    // ... existing handlers
-    "NEWCOMM": newCommand,
-}
-```
+**RESP Protocol Parsing**:
+The RESP reader works by examining the first byte to determine data type (+ for strings, $ for bulk strings, * for arrays, etc.). It then reads the appropriate number of bytes based on length prefixes, handling CRLF terminators correctly. The parser builds a recursive Value structure that represents the complete Redis command.
 
-3. Add AOF logging if the command modifies data (in `main.go`):
-```go
-if command == "SET" || command == "HSET" || command == "NEWCOMM" {
-    aof.Write(value)
-}
-```
+**Command Processing Pipeline**:
+When a command arrives, it's converted to uppercase and looked up in the handlers map. Arguments are passed as a slice of Value structs to the appropriate handler function. Each handler validates argument count, performs the operation on thread-safe data structures, and returns a properly formatted RESP response.
+
+**Thread Safety Implementation**:
+Two separate mutex systems protect the data stores - SETsMu guards the string key-value pairs, while HSETsMu protects the hash data structures. Read operations use RLock() for concurrent access, while write operations use Lock() for exclusive access. This allows multiple readers but ensures data consistency during writes.
+
+**AOF Persistence Strategy**:
+The Append-Only File logs every write command in RESP format to a file called "database.aof". A background goroutine syncs the file every second to ensure durability. On startup, the server replays all logged commands to restore the previous state, making the data persistent across restarts.
 
 ## 📝 License
 
@@ -163,15 +156,6 @@ This project is open source and available under the MIT License.
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 🎯 Future Enhancements
-
-- [ ] Add more Redis commands (DEL, EXISTS, EXPIRE, etc.)
-- [ ] Implement Redis pub/sub functionality
-- [ ] Add support for Redis Modules
-- [ ] Implement clustering support
-- [ ] Add comprehensive test suite
-- [ ] Performance benchmarking
 
 ---
 
